@@ -1,6 +1,7 @@
 
 #include <stdint.h>
 #include "rprintf.h"
+#include "page.h"
 
 #define MULTIBOOT2_HEADER_MAGIC         0xe85250d6
 
@@ -172,7 +173,9 @@ void main() {
     esp_printf(putc, "Current execution level: %d", execution_level);  
     
     esp_printf(putc, "\n\n\n"); 
-    
+   
+  
+
     while(1) {
         // Get the status from PS/2 register
         uint8_t status = inb(0x64);
