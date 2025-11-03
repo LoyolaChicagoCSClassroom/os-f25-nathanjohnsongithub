@@ -1,11 +1,15 @@
-
 #include <stdint.h>
 #include "rprintf.h"
 #include "page.h"
+#include "map.h"
 
 #define MULTIBOOT2_HEADER_MAGIC         0xe85250d6
 
 const unsigned int multiboot_header[]  __attribute__((section(".multiboot"))) = {MULTIBOOT2_HEADER_MAGIC, 0, 16, -(16+MULTIBOOT2_HEADER_MAGIC), 0, 12};
+
+extern char _end_kernel;
+extern char _start_stack;
+extern char _end_stack;
 
 uint8_t inb (uint16_t _port) {
     uint8_t rv;
@@ -137,18 +141,7 @@ int putc(int data) {
 	return 0;
 }
 
-/*
-void main () {
-
-	//putc(65);
-	//putc(66);
-	helper();
-	y = 80 * 25;
-	esp_printf(putc, "Hello World!AHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH\tCHARGLE\ncharles");	
-	
-	while(1);
-}
-*/
+struct ppage * allocd_list = NULL;
 
 void main() {
     // Example putc use
@@ -174,8 +167,68 @@ void main() {
     
     esp_printf(putc, "\n\n\n"); 
    
-  
+    // Initialize the free_list for the PFA
+    init_pfa_list();
+    
+    // Allocate 2 physical pages to the allocd list
+    //allocd_list = allocate_physical_pages(2);
+    //esp_printf(putc, "next=%x | prev=%x", allocd_list->next, allocd_list->prev);
+    
+    
+    // Clear the paging datastructures before identity mapping
+    
+    for (int i = 0; i < 1024; i++) {
+        ((uint32_t*)pd)[i] = 0;
+        ((uint32_t*)pt)[i] = 0;
+    }
+    // Link pd[0] to pt
+    pd[0].frame = ((uintptr_t)pt) >> 12;
+    pd[0].present = 1;
+    pd[0].rw = 1;
+    pd[0].user = 0;
+    pd[0].pagesize = 0; 
+    
 
+    struct ppage tmp;
+    tmp.next = NULL;
+    tmp.prev = NULL;
+   
+    esp_printf(putc, "End of kernel value = %x\n", (uintptr_t)&_end_kernel);
+    // Identity map the kernel
+    for (uintptr_t addr = 0x100000; addr < (uintptr_t)&_end_kernel; addr += 0x1000) {
+        tmp.physical_addr = (void *)addr;
+
+        // Call map pages map the virtual and physical addresses
+        map_pages((void *)addr, &tmp, pd);
+    }
+   
+    esp_printf(putc, "Start of stack=%x | End of stack=%x\n", (uintptr_t)&_start_stack, (uintptr_t)&_end_stack); 
+    // Identity map the stack
+    for (uintptr_t addr = (uintptr_t) &_start_stack; addr < (uintptr_t)&_end_stack; addr += 0x1000) {
+        tmp.physical_addr = (void *)addr;
+
+        // Call map pages map the virtual and physical addresses
+        map_pages((void *)addr, &tmp, pd);
+    }
+    
+    // Map the *current* stack page(s), not just the linker range
+    uint32_t esp_now;
+    __asm__ volatile("mov %%esp,%0" : "=r"(esp_now));
+    tmp.physical_addr = (void *)esp_now;
+    map_pages((void *)esp_now, &tmp, pd);
+
+
+    // Identity map the video buffer
+    tmp.physical_addr = (void *)0xB8000;
+    map_pages((void *)0xB8000, &tmp, pd);
+
+    // lets load the page directory
+    loadPageDirectory(pd);
+
+    // Now that everything is identity mapped, lets enable paging
+    enablePaging();
+
+    esp_printf(putc, "\n\n\n");
     while(1) {
         // Get the status from PS/2 register
         uint8_t status = inb(0x64);

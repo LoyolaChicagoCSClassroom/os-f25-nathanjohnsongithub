@@ -26,6 +26,7 @@ OBJS = \
 	kernel_main.o \
 	rprintf.o \
 	page.o \
+	map.o \
 # Make sure to keep a blank line here after OBJS list
 
 OBJ = $(patsubst %,$(ODIR)/%,$(OBJS))
