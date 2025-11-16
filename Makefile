@@ -27,6 +27,8 @@ OBJS = \
 	rprintf.o \
 	page.o \
 	map.o \
+	fat.o \
+	ide.o \
 # Make sure to keep a blank line here after OBJS list
 
 OBJ = $(patsubst %,$(ODIR)/%,$(OBJS))
@@ -35,8 +37,8 @@ $(ODIR)/%.o: $(SDIR)/%.c
 	$(CC) $(CFLAGS) -c -g -o $@ $^
 
 $(ODIR)/%.o: $(SDIR)/%.s
-	$(CC) $(CFLAGS) -c -g -o $@ $^
-
+#	$(CC) $(CFLAGS) -c -g -o $@ $^
+	nasm -f elf32 -g -o $@ $^
 
 all: bin rootfs.img
 
@@ -57,6 +59,8 @@ rootfs.img:
 	mcopy -i rootfs.img@@1M kernel ::/
 	mmd -i rootfs.img@@1M boot 
 	mcopy -i rootfs.img@@1M grub.cfg ::/boot
+	# Adding testfile to end of rootfs.img automatically on every build
+	mcopy -i rootfs.img@@1M TESTFILE.TXT ::/
 	@echo " -- BUILD COMPLETED SUCCESSFULLY --"
 
 

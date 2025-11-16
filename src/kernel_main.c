@@ -2,6 +2,7 @@
 #include "rprintf.h"
 #include "page.h"
 #include "map.h"
+#include "fat.h"
 
 #define MULTIBOOT2_HEADER_MAGIC         0xe85250d6
 
@@ -229,6 +230,28 @@ void main() {
     enablePaging();
 
     esp_printf(putc, "\n\n\n");
+    
+    // Initialize the fat filesystem driver by reading the superblock into memory
+    int error = fatInit();
+    if (error != 0) {
+        esp_printf(putc, "There was an error with the fat filesystem. Sorry!\n");
+    } else {
+        esp_printf(putc, "The fat filesystem initialized successfully\n");
+    }
+
+    struct file *f = fatOpen("testfile.txt");
+    if (f == NULL) {
+        esp_printf(putc, "File not found!\n");
+    }else {
+        esp_printf(putc, "Successfully opened %s, cluster=%x, size=%x bytes\n", f->rde.file_name, f->start_cluster, f->rde.file_size);
+        esp_printf(putc, "Will now attempt to read that opened file\n");
+        
+        uint8_t buffer[512];
+        int bytes = fatRead(f, buffer, sizeof(buffer));
+        buffer[bytes < sizeof(buffer) ? bytes : sizeof(buffer) - 1] = '\0';
+        esp_printf(putc, "Read %d bytes, they're displayed below:\n%s\n", bytes, buffer);
+    }
+
     while(1) {
         // Get the status from PS/2 register
         uint8_t status = inb(0x64);
